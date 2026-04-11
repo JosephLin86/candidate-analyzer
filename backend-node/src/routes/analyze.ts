@@ -35,9 +35,10 @@ function extractJobSkills(jobPosting: string): string[] {
     'TailwindCSS', 'CSS', 'HTML', 'Swift', 'Kotlin', 'Golang', 'Rust',
     'Java', 'Spring', 'Ruby', 'Rails', 'C++', 'C#', '.NET'
   ]
-  return commonSkills.filter(skill =>
-    new RegExp(`\\b${skill}\\b`, 'i').test(jobPosting)
-  )
+  return commonSkills.filter(skill => {
+    const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return new RegExp(`\\b${escaped}\\b`, 'i').test(jobPosting)
+  })
 }
 
 

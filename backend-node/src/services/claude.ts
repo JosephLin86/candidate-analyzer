@@ -270,18 +270,20 @@ Years of experience: ${parsedResume.totalYearsExperience ?? 'unknown'}
 Skills claimed on resume: ${resumeClaimedSkills}
 Skills confirmed by GitHub: ${githubConfirmedSkills}
 Skills claimed but not confirmed by GitHub: ${missingEvidence}
-Engineering levels detected across repos: ${engineeringLevels.join(', ') || 'unknown'}
-Top repos: ${topRepos.map(r => `${r.repoName} (${r.engineeringLevel || 'unknown'})`).join(', ')}
+
+Top repos with specific evidence:
+${topRepos.map(r => `- ${r.repoName} (${r.engineeringLevel || 'unknown'}): ${r.depthReasons?.[0] || 'no detail available'}
+  Engineering level reason: ${r.engineeringLevelReason || 'none'}`).join('\n')}
+
 ${jobPosting ? `Job context: ${jobPosting.slice(0, 500)}` : ''}
 
 Rules:
-- Be specific, reference actual repo names and skills
-- Mention the engineering level signal — is this new-grad, junior, mid, or senior work?
+- Reference specific evidence from the repo details above — name actual technical signals like "JWT authentication", "WebSocket implementation", "API integration"
+- Mention the engineering level per repo with the specific reason why
 - Highlight where GitHub confirms resume claims and where it does not
-- Do not use generic phrases like "strong candidate" or "great fit"
-- Mention both strengths and gaps
-- Write for a recruiter who needs to decide whether to move forward`
-
+- Do not use generic phrases like "strong candidate", "great fit", or "solid skills"
+- Be direct and evidence-based — a recruiter needs to decide whether to interview this person
+- 3-4 sentences maximum`
   const response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 400,

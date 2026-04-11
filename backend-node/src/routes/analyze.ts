@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { getRepos, getFullRepoData } from '../services/github'
 import { scoreRepoSignals, getTopRepos } from '../services/scoring'
+import multer from 'multer'
+import { extractTextFromPDF } from '../services/resume'
 import {
   assessRepoDepth,
   assessSkillAlignmentAllRepos,
@@ -10,6 +12,9 @@ import {
 } from '../services/claude'
 
 const router = Router()
+const upload = multer({ storage: multer.memoryStorage() })
+
+
 
 function extractGithubUsername(text: string): string | null {
   const match = text.match(/github\.com\/([a-zA-Z0-9-]+)/i)
@@ -35,13 +40,21 @@ function extractJobSkills(jobPosting: string): string[] {
   )
 }
 
-router.post('/', async (req, res) => {
-  try {
-    const { resumeText, jobPosting } = req.body
 
-    if (!resumeText) {
-      return res.status(400).json({ error: 'resumeText is required' })
+
+router.post('/', upload.single('resume'), async (req: any, res: any) => {
+  try {
+    let resumeText = ''
+
+    if (req.file) {
+      resumeText = await extractTextFromPDF(req.file.buffer)
+    } else if (req.body.resumeText) {
+      resumeText = req.body.resumeText
+    } else {
+      return res.status(400).json({ error: 'Resume PDF or text is required' })
     }
+
+    const jobPosting = req.body.jobPosting || ''
 
     // Step 1 — extract URLs from resume
     const githubUsername = extractGithubUsername(resumeText)
@@ -50,7 +63,6 @@ router.post('/', async (req, res) => {
     if (!githubUsername) {
       return res.status(400).json({ error: 'No GitHub URL found in resume' })
     }
-
     // Step 2 — extract job skills if posting provided
     const jobSkills = jobPosting ? extractJobSkills(jobPosting) : []
 

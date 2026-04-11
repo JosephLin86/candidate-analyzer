@@ -1,7 +1,13 @@
 import { Router } from 'express'
 import { getRepos, getFullRepoData } from '../services/github'
 import { scoreRepoSignals, getTopRepos } from '../services/scoring'
-import { assessRepoDepth, assessSkillAlignmentAllRepos, generateAlignmentNarrative } from '../services/claude'
+import {
+  assessRepoDepth,
+  assessSkillAlignmentAllRepos,
+  generateAlignmentNarrative,
+  parseResume,
+  ParsedResume
+} from '../services/claude'
 
 const router = Router()
 
@@ -21,11 +27,11 @@ function extractJobSkills(jobPosting: string): string[] {
     'Python', 'Node.js', 'Express', 'FastAPI', 'Django', 'Flask',
     'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'GraphQL', 'REST',
     'Docker', 'Kubernetes', 'AWS', 'GCP', 'Azure', 'Terraform',
-    'TailwindCSS', 'CSS', 'HTML', 'Swift', 'Kotlin', 'Go', 'Rust',
+    'TailwindCSS', 'CSS', 'HTML', 'Swift', 'Kotlin', 'Golang', 'Rust',
     'Java', 'Spring', 'Ruby', 'Rails', 'C++', 'C#', '.NET'
   ]
   return commonSkills.filter(skill =>
-    jobPosting.toLowerCase().includes(skill.toLowerCase())
+    new RegExp(`\\b${skill}\\b`, 'i').test(jobPosting)
   )
 }
 
@@ -48,11 +54,14 @@ router.post('/', async (req, res) => {
     // Step 2 — extract job skills if posting provided
     const jobSkills = jobPosting ? extractJobSkills(jobPosting) : []
 
-    // Step 3 — fetch all repos
-    const allRepos = await getRepos(githubUsername)
+    // Step 3 — fetch repos AND parse resume in parallel
+    const [allRepos, parsedResume] = await Promise.all([
+      getRepos(githubUsername),
+      parseResume(resumeText)
+    ])
 
-    // Step 4 — get top 5 non-forked repos to analyze
-    const topRepos = getTopRepos(allRepos, 5)
+    // Step 4 — get top repos using dual signal selection
+    const topRepos = getTopRepos(allRepos, 6)
 
     // Step 5 — fetch full data for each top repo in parallel
     const repoDataList = await Promise.all(
@@ -87,7 +96,7 @@ router.post('/', async (req, res) => {
       languages: fullData.languages
     }))
 
-    // Step 8 — Claude depth assessment for all repos + skill alignment in parallel
+    // Step 8 — depth assessment + skill alignment in parallel
     const [depthAssessments, skillAlignments] = await Promise.all([
       Promise.all(repoMetadataList.map(meta => assessRepoDepth(meta))),
       jobSkills.length > 0
@@ -95,11 +104,13 @@ router.post('/', async (req, res) => {
         : Promise.resolve([])
     ])
 
-    // Step 9 — combine scores
+    // Step 9 — combine all scores
     const combinedRepos = scoredRepos.map((scored, i) => ({
       ...scored,
       depthScore: depthAssessments[i].depthScore,
       originalityScore: depthAssessments[i].originalityScore,
+      engineeringLevel: depthAssessments[i].engineeringLevel,
+      engineeringLevelReason: depthAssessments[i].engineeringLevelReason,
       depthReasons: depthAssessments[i].reasons,
       skillAlignment: skillAlignments[i] || null,
       totalScore: scored.totalScore + depthAssessments[i].depthScore + depthAssessments[i].originalityScore
@@ -116,28 +127,41 @@ router.post('/', async (req, res) => {
       100
     )
 
-    // Step 12 — Claude narrative summary
+    // Step 12 — overall engineering level (most common across top 3)
+    const levelOrder = ['new-grad', 'junior', 'mid', 'senior', 'staff']
+    const levels = finalTopRepos.map(r => r.engineeringLevel).filter(Boolean)
+    const avgLevelIndex = Math.round(
+      levels.reduce((sum, l) => sum + levelOrder.indexOf(l), 0) / levels.length
+    )
+    const overallEngineeringLevel = levelOrder[avgLevelIndex] || 'junior'
+
+    // Step 13 — Claude narrative summary
     const narrative = await generateAlignmentNarrative(
-      githubUsername,
+      parsedResume.name || githubUsername,
       finalTopRepos,
       overallScore,
       skillAlignments,
+      parsedResume,
       jobPosting
     )
 
     res.json({
       githubUsername,
       linkedinUrl,
+      candidateName: parsedResume.name || githubUsername,
       overallScore,
+      overallEngineeringLevel,
       narrative,
+      parsedResume,
       topRepos: finalTopRepos,
       jobSkillsDetected: jobSkills,
       totalReposAnalyzed: topRepos.length
     })
 
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: 'Analysis failed' })
+  } catch (error: any) {
+    console.error('FULL ERROR:', error?.message)
+    console.error('STACK:', error?.stack)
+    res.status(500).json({ error: 'Analysis failed', details: error?.message })
   }
 })
 

@@ -165,3 +165,17 @@ export async function getFullRepoData(owner: string, repo: string, username: str
     commitCount
   }
 }
+
+export async function getReadme(owner: string, repo: string): Promise<string> {
+  try {
+    const response = await axios.get(
+      `${BASE_URL}/repos/${owner}/${repo}/readme`,
+      { headers }
+    )
+    const content = Buffer.from(response.data.content, 'base64').toString('utf-8')
+    // Return first 1000 chars only — enough context without blowing token budget
+    return content.slice(0, 1000)
+  } catch {
+    return ''
+  }
+}

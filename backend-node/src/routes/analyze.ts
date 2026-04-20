@@ -1,20 +1,21 @@
 import { Router } from 'express'
-import { getRepos, getFullRepoData } from '../services/github'
-import { scoreRepoSignals, getTopRepos } from '../services/scoring'
 import multer from 'multer'
-import { extractTextFromPDF } from '../services/resume'
+import { getRepos, getFullRepoData, getReadme } from '../services/github'
+import { getShortlist, getTopRepos, scoreRepoSignals } from '../services/scoring'
 import {
   assessRepoDepth,
   assessSkillAlignmentAllRepos,
   generateAlignmentNarrative,
   parseResume,
-  ParsedResume
+  rankRepos,
+  scoreResume,
+  ParsedResume,
+  ResumeScore
 } from '../services/claude'
+import { extractTextFromPDF } from '../services/resume'
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage() })
-
-
 
 function extractGithubUsername(text: string): string | null {
   const match = text.match(/github\.com\/([a-zA-Z0-9-]+)/i)
@@ -41,8 +42,6 @@ function extractJobSkills(jobPosting: string): string[] {
   })
 }
 
-
-
 router.post('/', upload.single('resume'), async (req: any, res: any) => {
   try {
     let resumeText = ''
@@ -57,34 +56,53 @@ router.post('/', upload.single('resume'), async (req: any, res: any) => {
 
     const jobPosting = req.body.jobPosting || ''
 
-    // Step 1 — extract URLs from resume
+    // Step 1 — extract URLs and job skills from resume/posting
     const githubUsername = extractGithubUsername(resumeText)
     const linkedinUrl = extractLinkedinUrl(resumeText)
 
     if (!githubUsername) {
       return res.status(400).json({ error: 'No GitHub URL found in resume' })
     }
-    // Step 2 — extract job skills if posting provided
+
     const jobSkills = jobPosting ? extractJobSkills(jobPosting) : []
 
-    // Step 3 — fetch repos AND parse resume in parallel
+    // Step 2 — fetch all repos + parse resume in parallel
     const [allRepos, parsedResume] = await Promise.all([
       getRepos(githubUsername),
       parseResume(resumeText)
     ])
 
-    // Step 4 — get top repos using dual signal selection
-    const topRepos = getTopRepos(allRepos, 6)
+    // Step 3 — FIRST PASS: metadata shortlist (8-15 repos, removes obvious junk)
+    const shortlist = getShortlist(allRepos, 15)
 
-    // Step 5 — fetch full data for each top repo in parallel
+    // Step 4 — SECOND PASS: Claude ranks shortlist and picks best 6
+    let selectedRepoNames: string[]
+    try {
+      selectedRepoNames = await rankRepos(shortlist, jobSkills)
+    } catch {
+      // Fallback to simple selection if Claude ranking fails
+      selectedRepoNames = getTopRepos(shortlist, 6).map((r: any) => r.name)
+    }
+
+    // Match selected names back to repo objects
+    const selectedRepos = selectedRepoNames
+      .map(name => shortlist.find((r: any) => r.name === name))
+      .filter(Boolean)
+      .slice(0, 6)
+
+    // Step 5 — THIRD PASS: fetch deep data for finalists in parallel
+    // Includes dependencies (9 paths), file structure, commit data, AND readme
     const repoDataList = await Promise.all(
-      topRepos.map(async (repo: any) => {
-        const fullData = await getFullRepoData(githubUsername, repo.name, githubUsername)
-        return { repo, fullData }
+      selectedRepos.map(async (repo: any) => {
+        const [fullData, readme] = await Promise.all([
+          getFullRepoData(githubUsername, repo.name, githubUsername),
+          getReadme(githubUsername, repo.name)
+        ])
+        return { repo, fullData, readme }
       })
     )
 
-    // Step 6 — score each repo deterministically
+    // Step 6 — deterministic scoring
     const scoredRepos = repoDataList.map(({ repo, fullData }) =>
       scoreRepoSignals(
         repo,
@@ -95,8 +113,9 @@ router.post('/', upload.single('resume'), async (req: any, res: any) => {
       )
     )
 
-    // Step 7 — build repo metadata list for Claude calls
-    const repoMetadataList = repoDataList.map(({ repo, fullData }) => ({
+    // Step 7 — build metadata list for Claude depth assessment
+    // Now includes readme for richer context
+    const repoMetadataList = repoDataList.map(({ repo, fullData, readme }) => ({
       name: repo.name,
       description: repo.description || '',
       commitMessages: fullData.commitMessages,
@@ -106,15 +125,17 @@ router.post('/', upload.single('resume'), async (req: any, res: any) => {
       ),
       dependencies: fullData.dependencies,
       fileStructure: fullData.fileStructure,
-      languages: fullData.languages
+      languages: fullData.languages,
+      readme
     }))
 
-    // Step 8 — depth assessment + skill alignment in parallel
-    const [depthAssessments, skillAlignments] = await Promise.all([
+    // Step 8 — Claude depth assessment + skill alignment in parallel
+    const [depthAssessments, skillAlignments, resumeScore] = await Promise.all([
       Promise.all(repoMetadataList.map(meta => assessRepoDepth(meta))),
       jobSkills.length > 0
         ? assessSkillAlignmentAllRepos(repoMetadataList, jobSkills)
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      scoreResume(parsedResume)
     ])
 
     // Step 9 — combine all scores
@@ -135,20 +156,29 @@ router.post('/', upload.single('resume'), async (req: any, res: any) => {
       .slice(0, 3)
 
     // Step 11 — overall score out of 100
-    const overallScore = Math.min(
+    // GitHub score — average of top 3 repos, capped at 60
+    const githubScore = Math.min(
       Math.round(finalTopRepos.reduce((sum, r) => sum + r.totalScore, 0) / finalTopRepos.length),
-      100
+      60
     )
 
-    // Step 12 — overall engineering level (most common across top 3)
+    // Resume score — 0-40 from Claude assessment
+    // Overall = GitHub (60%) + Resume (40%)
+    const overallScore = Math.min(githubScore + resumeScore.score, 100)
+
+    // Step 12 — overall engineering level (average across top 3)
     const levelOrder = ['new-grad', 'junior', 'mid', 'senior', 'staff']
-    const levels = finalTopRepos.map(r => r.engineeringLevel).filter(Boolean)
-    const avgLevelIndex = Math.round(
-      levels.reduce((sum, l) => sum + levelOrder.indexOf(l), 0) / levels.length
+    const githubLevels = finalTopRepos.map(r => r.engineeringLevel).filter(Boolean)
+    const avgGithubLevelIndex = Math.round(
+      githubLevels.reduce((sum: number, l: string) => sum + levelOrder.indexOf(l), 0) / githubLevels.length
     )
-    const overallEngineeringLevel = levelOrder[avgLevelIndex] || 'junior'
+    const resumeLevelIndex = levelOrder.indexOf(resumeScore.level)
 
-    // Step 13 — Claude narrative summary
+    // Blend GitHub and resume level — weight GitHub slightly more
+    const blendedLevelIndex = Math.round((avgGithubLevelIndex * 0.6) + (resumeLevelIndex * 0.4))
+    const overallEngineeringLevel = levelOrder[Math.min(blendedLevelIndex, 4)] || 'junior'
+
+    // Step 13 — Claude narrative
     const narrative = await generateAlignmentNarrative(
       parsedResume.name || githubUsername,
       finalTopRepos,
@@ -166,9 +196,11 @@ router.post('/', upload.single('resume'), async (req: any, res: any) => {
       overallEngineeringLevel,
       narrative,
       parsedResume,
+      resumeScore,          // add this
+      githubScore,          // add this so frontend can show breakdown
       topRepos: finalTopRepos,
       jobSkillsDetected: jobSkills,
-      totalReposAnalyzed: topRepos.length
+      totalReposAnalyzed: selectedRepos.length
     })
 
   } catch (error: any) {

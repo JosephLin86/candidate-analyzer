@@ -56,12 +56,21 @@ router.post('/', upload.single('resume'), async (req: any, res: any) => {
 
     const jobPosting = req.body.jobPosting || ''
 
-    // Step 1 — extract URLs and job skills from resume/posting
-    const githubUsername = extractGithubUsername(resumeText)
+    // Step 1 — extract GitHub username
+    let githubUsername = extractGithubUsername(resumeText)
     const linkedinUrl = extractLinkedinUrl(resumeText)
 
+    // If not in resume, check if recruiter provided it manually
+    if (!githubUsername && req.body.manualGithub) {
+      githubUsername = extractGithubUsername(req.body.manualGithub) 
+        || req.body.manualGithub.replace(/.*github\.com\//i, '').split('/')[0].trim()
+    }
+
     if (!githubUsername) {
-      return res.status(400).json({ error: 'No GitHub URL found in resume' })
+      return res.status(400).json({ 
+        error: 'No GitHub URL found in resume',
+        code: 'NO_GITHUB_FOUND'
+      })
     }
 
     const jobSkills = jobPosting ? extractJobSkills(jobPosting) : []

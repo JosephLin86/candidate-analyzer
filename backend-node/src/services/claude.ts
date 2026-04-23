@@ -13,6 +13,7 @@ interface RepoMetadata {
   dependencies: string[]
   fileStructure: string[]
   languages: string[]
+  readme?: string
 }
 
 interface DepthAssessment {
@@ -44,6 +45,23 @@ export interface ParsedResume {
     school: string
   }[]
   totalYearsExperience: number | null
+}
+
+export interface ExperienceAssessment {
+  company: string
+  role: string
+  score: number
+  tier: 'tier-1' | 'tier-2' | 'tier-3' | 'irrelevant'
+  tierLabel: string
+  reason: string
+}
+
+export interface ResumeScore {
+  score: number
+  level: 'new-grad' | 'junior' | 'mid' | 'senior' | 'staff'
+  reasons: string[]
+  companySummary: string
+  experienceAssessments: ExperienceAssessment[]
 }
 
 export async function parseResume(resumeText: string): Promise<ParsedResume> {
@@ -94,7 +112,6 @@ Rules:
   }
 }
 
-// SECOND PASS — Claude ranks the metadata shortlist and picks the best 6
 export async function rankRepos(repos: any[], jobSkills: string[]): Promise<string[]> {
   const repoSummaries = repos.map(repo => {
     const ageInDays = Math.floor(
@@ -125,6 +142,7 @@ Pick the best 6 repositories to analyze deeply. Prioritize:
 - Projects that show engineering depth (systems, APIs, full-stack apps, ML pipelines)
 - Projects relevant to the job requirements if provided
 - Repos with longer active lifespan (creation to last push gap) — shows sustained work
+- Repos with descriptive names that clearly indicate a real product or tool
 - Larger repos tend to have more code and complexity
 
 Deprioritize:
@@ -136,6 +154,8 @@ Do NOT deprioritize based on:
 - Repo age — a new repo can be a serious project
 - Repo size — a well-architected project can be small
 - Lack of stars — most good personal projects have 0 stars
+
+The name and description are the strongest signals. A repo called "candidate-analyzer" that cross-references resumes against GitHub activity is clearly a real project regardless of age or size.
 
 Return JSON only, no other text:
 {
@@ -157,12 +177,11 @@ Return JSON only, no other text:
     console.log('Claude repo ranking reasoning:', result.reasoning)
     return result.selectedRepos || repos.slice(0, 6).map((r: any) => r.name)
   } catch {
-    // Fallback to first 6 if Claude fails
     return repos.slice(0, 6).map((r: any) => r.name)
   }
 }
 
-export async function assessRepoDepth(repo: RepoMetadata & { readme?: string }): Promise<DepthAssessment> {
+export async function assessRepoDepth(repo: RepoMetadata): Promise<DepthAssessment> {
   const prompt = `You are a senior engineering manager evaluating a GitHub repository to assess the engineering level of its author.
 
 Repository: "${repo.name}"
@@ -172,7 +191,7 @@ Total commits: ${repo.commitCount}
 Dependencies: ${repo.dependencies.join(', ') || 'none'}
 File structure: ${repo.fileStructure.join(', ') || 'none'}
 Last 20 commit messages: ${repo.commitMessages.join(' | ') || 'none'}
-${repo.readme ? `README excerpt:\n${repo.readme.slice(0, 800)}` : ''}
+${repo.readme ? `README excerpt:\n${repo.readme.slice(0, 800).replace(/[`{}]/g, '')}` : ''}
 
 Assess this repository and return JSON only, no other text:
 {
@@ -217,6 +236,7 @@ Red flags for junior: commit messages like "fix", "update", "test", tutorial rep
     const clean = text.replace(/```json|```/g, '').trim()
     return JSON.parse(clean)
   } catch {
+    console.error('assessRepoDepth parse error for', repo.name, ':', text)
     return {
       depthScore: 15,
       originalityScore: 15,
@@ -350,22 +370,14 @@ Rules:
   return response.content[0].type === 'text' ? response.content[0].text : ''
 }
 
-// ADD THIS INTERFACE AND FUNCTION TO claude.ts
-
-export interface ResumeScore {
-  score: number  // 0-40
-  level: 'new-grad' | 'junior' | 'mid' | 'senior' | 'staff'
-  reasons: string[]
-  companySummary: string
-}
-
 export async function scoreResume(parsedResume: ParsedResume): Promise<ResumeScore> {
   if (!parsedResume.experience || parsedResume.experience.length === 0) {
     return {
       score: 0,
       level: 'new-grad',
       reasons: ['No work experience found on resume'],
-      companySummary: 'No experience listed'
+      companySummary: 'No experience listed',
+      experienceAssessments: []
     }
   }
 
@@ -381,39 +393,59 @@ ${experienceSummary}
 Total years of experience: ${parsedResume.totalYearsExperience ?? 'unknown'}
 Education: ${parsedResume.education.map(e => `${e.degree} at ${e.school}`).join(', ') || 'none listed'}
 
-Score this candidate's work experience out of 40 points and return JSON only, no other text:
+Return JSON only, no other text:
 {
-  "score": <0-40>,
+  "score": <0-40 total>,
   "level": "<new-grad|junior|mid|senior|staff>",
-  "reasons": [<2-3 specific reasons for the score>],
-  "companySummary": "<one sentence describing the experience, e.g. 'Two SWE internships at Google and a Series B startup'>"
+  "reasons": [<2-3 overall reasons>],
+  "companySummary": "<one sentence describing the overall experience>",
+  "experienceAssessments": [
+    {
+      "company": "<company name>",
+      "role": "<role title>",
+      "score": <0-10>,
+      "tier": "<tier-1|tier-2|tier-3|irrelevant>",
+      "tierLabel": "<e.g. 'Top-tier tech', 'Series B startup', 'Unknown company', 'Non-technical role'>",
+      "reason": "<one specific sentence about what this role signals about the candidate>"
+    }
+  ]
 }
 
-Scoring guidance (0-40):
-- 0-8: No experience or irrelevant experience (retail, food service, non-technical roles)
-- 9-16: One short internship at an unknown company, or minimal technical exposure
-- 17-24: One strong internship (FAANG, unicorn, well-known tech company) OR two decent internships at mid-tier companies
-- 25-32: Multiple strong internships, or 1-2 years of full-time SWE experience at reputable companies
-- 33-40: Senior full-time experience at top-tier companies, strong progression, or staff-level work
+CRITICAL — HOW TO CALCULATE THE TOTAL SCORE:
+The "score" field (0-40) is a HOLISTIC assessment. It is NOT the sum of individual position scores.
+Do NOT add up the per-position scores to get the total. That would be wrong.
+The total score uses this scale based on overall experience quality:
 
-Company tier guidance:
-- Tier 1 (highest signal): Google, Meta, Apple, Amazon, Microsoft, Netflix, OpenAI, Anthropic, Stripe, Coinbase, Airbnb, Uber, etc.
-- Tier 2: Well-known startups (Series B+), major banks (Goldman, JPMorgan tech), consulting (McKinsey, BCG tech)
+- 0-8: No experience or irrelevant roles only
+- 9-14: One or two very short internships at unknown companies (less than 6 months total)
+- 15-20: Two decent internships at tier-3 companies, OR one strong internship at tier-2
+- 21-28: Multiple strong internships, OR 1+ years full-time at a reputable company
+- 29-35: Several strong internships at tier-1/tier-2, OR 2+ years full-time progression
+- 36-40: Senior full-time at tier-1 companies or exceptional career trajectory
+
+Example to illustrate: A candidate with two 3-month internships at unknown companies
+scores 5/10 and 5/10 per position, but their TOTAL score should be around 10-12/40
+because their overall experience package is minimal — NOT 10/40 because 5+5=10.
+The total must reflect the full picture: duration, progression, company quality, relevance.
+
+Per-position scoring (0-10) — these are INDEPENDENT signals, not components of the total:
+- 0-2: irrelevant role or no technical work
+- 3-4: minor technical exposure at unknown company
+- 5-6: real SWE work at tier-3 or short internship at tier-2
+- 7-8: strong internship at tier-2 or full-time at tier-3
+- 9-10: internship at tier-1 (FAANG/OpenAI/Stripe etc.) or senior full-time at tier-2
+
+Company tiers:
+- Tier 1: Google, Meta, Apple, Amazon, Microsoft, Netflix, OpenAI, Anthropic, Stripe, Coinbase, Airbnb, Uber, etc.
+- Tier 2: Well-known startups (Series B+), major banks tech divisions, top consulting firms
 - Tier 3: Unknown startups, small companies, research labs
-- Tier 4: Non-technical roles, irrelevant experience
+- Irrelevant: Non-technical roles, marketing, sales, operations
 
-Role relevance:
-- Highly relevant: Software Engineer, ML Engineer, Data Engineer, DevOps, SRE
-- Somewhat relevant: Data Analyst (with coding), Research Assistant (technical), Product Engineer
-- Not relevant: Marketing, Sales, Operations, non-technical internships
-
-Duration matters — a 3 month internship counts less than a 12 month co-op or full-time role.
-Recency matters — experience from 5+ years ago counts less than recent experience.
-Progression matters — if they went from unknown startup to FAANG, that shows growth.`
+Make sure experienceAssessments has one entry per position listed above, in the same order.`
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 500,
+    max_tokens: 800,
     messages: [{ role: 'user', content: prompt }]
   })
 
@@ -427,7 +459,15 @@ Progression matters — if they went from unknown startup to FAANG, that shows g
       score: 10,
       level: 'new-grad',
       reasons: ['Could not assess experience'],
-      companySummary: 'Could not assess'
+      companySummary: 'Could not assess',
+      experienceAssessments: parsedResume.experience.map(e => ({
+        company: e.company,
+        role: e.role,
+        score: 5,
+        tier: 'tier-3' as const,
+        tierLabel: 'Unknown company',
+        reason: 'Could not assess this position'
+      }))
     }
   }
 }

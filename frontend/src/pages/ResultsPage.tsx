@@ -543,6 +543,46 @@ export default function ResultsPage({ result, onReset }: Props) {
           </div>
         </div>
       </div>
+      {/* Floating feedback button */}
+      <a
+        href="https://docs.google.com/forms/d/e/1FAIpQLSdZaQnu6_hkJ1TZvb-nHVNWytDkkWKZvSvuDTYWPZu197yrnw/viewform"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          position: 'fixed',
+          bottom: 28,
+          right: 28,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 18px',
+          borderRadius: 99,
+          background: 'var(--brown-700)',
+          color: 'var(--cream)',
+          fontSize: 13,
+          fontWeight: 500,
+          textDecoration: 'none',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+          cursor: 'pointer',
+          fontFamily: 'DM Sans, sans-serif',
+          transition: 'background 0.15s, transform 0.15s',
+          zIndex: 999,
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'var(--brown-800)'
+          e.currentTarget.style.transform = 'translateY(-2px)'
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = 'var(--brown-700)'
+          e.currentTarget.style.transform = 'translateY(0)'
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        Give feedback
+      </a>
     </div>
   )
 }

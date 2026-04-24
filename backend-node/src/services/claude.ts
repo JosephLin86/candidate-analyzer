@@ -357,8 +357,11 @@ Rules:
 - Reference specific evidence from the repo details above — name actual technical signals like "JWT authentication", "WebSocket implementation", "API integration"
 - Mention the engineering level per repo with the specific reason why
 - Highlight where GitHub confirms resume claims and where it does not
-- Do not use generic phrases like "strong candidate", "great fit", or "solid skills"
-- Be direct and evidence-based — a recruiter needs to decide whether to interview this person
+- Lead with the strongest positive GitHub signal first
+- Be specific but fair — highlight gaps without making accusations
+- Do not quote commit messages directly — summarize the pattern instead
+- Do not use language like "concerning", "overstated", or "disconnect"
+- A recruiter needs enough to make a decision, not a verdict
 - 3-4 sentences maximum`
 
   const response = await client.messages.create({

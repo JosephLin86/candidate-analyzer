@@ -86,13 +86,11 @@ function ScoreBar({ label, value, max }: { label: string; value: number; max: nu
 
 function inferSignalTags(repo: any): string[] {
   const tags: string[] = []
-  const name = repo.repoName?.toLowerCase() || ''
   const reasons = (repo.depthReasons || []).join(' ').toLowerCase()
   const deps = (repo.breakdown?.dependencyCount || 0)
-
-  if (reasons.includes('full-stack') || reasons.includes('frontend') && reasons.includes('backend')) tags.push('Full-stack')
+  if (reasons.includes('full-stack') || (reasons.includes('frontend') && reasons.includes('backend'))) tags.push('Full-stack')
   if (reasons.includes('real-time') || reasons.includes('websocket') || reasons.includes('socket')) tags.push('Real-time')
-  if (reasons.includes('api') || reasons.includes('rest') || reasons.includes('github api') || reasons.includes('claude api')) tags.push('API-heavy')
+  if (reasons.includes('api') || reasons.includes('github api') || reasons.includes('claude api')) tags.push('API-heavy')
   if (reasons.includes('auth') || reasons.includes('jwt') || reasons.includes('authentication')) tags.push('Auth')
   if (reasons.includes('ai') || reasons.includes('claude') || reasons.includes('ml') || reasons.includes('llm')) tags.push('AI-integrated')
   if (reasons.includes('aws') || reasons.includes('s3') || reasons.includes('cloud')) tags.push('Cloud')
@@ -100,7 +98,6 @@ function inferSignalTags(repo: any): string[] {
   if (deps > 10) tags.push('Multi-service')
   if (reasons.includes('pipeline')) tags.push('Pipeline')
   if (reasons.includes('distributed') || reasons.includes('queue') || reasons.includes('tcp')) tags.push('Systems')
-
   return tags.slice(0, 4)
 }
 
@@ -108,15 +105,11 @@ function inferConcerns(repo: any): string[] {
   const concerns: string[] = []
   const reasons = (repo.depthReasons || []).join(' ').toLowerCase()
   const level = repo.engineeringLevel
-
-  if (reasons.includes('debugging') || reasons.includes('reactive') || reasons.includes('bug')) {
-    concerns.push('Debugging-heavy commit patterns')
-  }
+  if (reasons.includes('debugging') || reasons.includes('reactive') || reasons.includes('bug')) concerns.push('Debugging-heavy commit patterns')
   if (!repo.breakdown?.hasTests) concerns.push('No test suite detected')
   if (!repo.breakdown?.hasCI) concerns.push('No CI/CD pipeline')
   if (repo.breakdown?.commitConsistency < 1) concerns.push('Inconsistent commit activity')
   if (level === 'new-grad' || level === 'junior') concerns.push('Limited architectural complexity')
-
   return concerns.slice(0, 2)
 }
 
@@ -128,10 +121,7 @@ function RepoCard({ repo, githubUsername }: { repo: any; githubUsername: string 
 
   return (
     <div style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)',
-      borderRadius: 16, padding: '22px 24px',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-
-      {/* Header row */}
+      borderRadius: 16, padding: '22px 24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <a href={`https://github.com/${githubUsername}/${repo.repoName}`}
@@ -150,27 +140,19 @@ function RepoCard({ repo, githubUsername }: { repo: any; githubUsername: string 
           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>score</div>
         </div>
       </div>
-
-      {/* Signal tags */}
       {signalTags.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
           {signalTags.map(tag => (
             <span key={tag} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 5,
               background: 'var(--brown-100)', color: 'var(--brown-700)',
-              border: '1px solid var(--brown-200)', fontWeight: 500 }}>
-              {tag}
-            </span>
+              border: '1px solid var(--brown-200)', fontWeight: 500 }}>{tag}</span>
           ))}
         </div>
       )}
-
-      {/* Score bars */}
       <div style={{ marginBottom: 14 }}>
         <ScoreBar label="Depth" value={repo.depthScore} max={30} />
         <ScoreBar label="Originality" value={repo.originalityScore} max={30} />
       </div>
-
-      {/* Key strengths */}
       <div style={{ marginBottom: concerns.length > 0 ? 10 : 0 }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase',
           letterSpacing: '0.07em', marginBottom: 6 }}>Key strengths</p>
@@ -182,15 +164,11 @@ function RepoCard({ repo, githubUsername }: { repo: any; githubUsername: string 
                 overflow: expanded ? 'visible' : 'hidden',
                 display: expanded ? 'block' : '-webkit-box',
                 WebkitLineClamp: expanded ? 'unset' : 2,
-                WebkitBoxOrient: 'vertical' as any }}>
-                {reason}
-              </p>
+                WebkitBoxOrient: 'vertical' as any }}>{reason}</p>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Concerns */}
       {concerns.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase',
@@ -205,8 +183,6 @@ function RepoCard({ repo, githubUsername }: { repo: any; githubUsername: string 
           </div>
         </div>
       )}
-
-      {/* Skill alignment */}
       {repo.skillAlignment?.alignments?.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12, paddingTop: 12,
           borderTop: '1px solid var(--border)' }}>
@@ -220,8 +196,6 @@ function RepoCard({ repo, githubUsername }: { repo: any; githubUsername: string 
           ))}
         </div>
       )}
-
-      {/* Expand toggle */}
       {repo.depthReasons?.length > 2 && (
         <button onClick={() => setExpanded(!expanded)}
           style={{ marginTop: 10, fontSize: 12, color: 'var(--brown-500)', background: 'none',
@@ -233,7 +207,82 @@ function RepoCard({ repo, githubUsername }: { repo: any; githubUsername: string 
   )
 }
 
+function ScoringModal({ onClose }: { onClose: () => void }) {
+  const githubItems = [
+    { label: 'Claude depth score', pts: '0–30', desc: 'Architecture quality, commit patterns, real problem solving vs tutorial following' },
+    { label: 'Claude originality score', pts: '0–30', desc: 'Did the candidate build something real? Novel ideas score high, cloned templates score low' },
+    { label: 'Language + framework match', pts: '0–18', desc: 'How well the repo stack matches the job posting requirements' },
+    { label: 'Tests + CI/CD', pts: '0–9', desc: 'Evidence of engineering best practices' },
+    { label: 'Repo age + commit consistency', pts: '0–6', desc: 'Sustained work over time — low weight tiebreaker only' },
+  ]
+  const resumeItems = [
+    { label: 'Company tier', pts: 'weighted', desc: 'Tier 1 (FAANG, OpenAI, Stripe) scores highest. Tier 2 (Series B+, major banks) is strong. Tier 3 (unknown startups) is moderate' },
+    { label: 'Role relevance', pts: 'weighted', desc: 'SWE, ML Eng, Data Eng score highest. Adjacent roles (data analyst, research) score partially. Non-technical roles score low' },
+    { label: 'Duration + progression', pts: 'weighted', desc: 'Longer tenures score higher. Career progression (from unknown to FAANG) shows growth' },
+  ]
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+      zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 20,
+        padding: '32px 36px', maxWidth: 560, width: '100%', maxHeight: '80vh',
+        overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: 'var(--brown-900)' }}>
+            How scoring works
+          </h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 20, color: 'var(--text-muted)', lineHeight: 1 }}>✕</button>
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>GitHub signal</span>
+            <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 13, color: 'var(--brown-700)' }}>60 pts</span>
+          </div>
+          {githubItems.map(item => (
+            <div key={item.label} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>{item.label}</span>
+                <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, color: 'var(--brown-600)' }}>{item.pts} pts</span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Resume signal</span>
+            <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 13, color: 'var(--brown-700)' }}>40 pts</span>
+          </div>
+          {resumeItems.map(item => (
+            <div key={item.label} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>{item.label}</span>
+                <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, color: 'var(--brown-600)' }}>{item.pts}</span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: '14px 16px', borderRadius: 10, background: 'var(--brown-50)', border: '1px solid var(--brown-200)' }}>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            <strong>Note:</strong> Scores reflect publicly available GitHub activity only.
+            Candidates who work primarily in private repos, contribute to company codebases,
+            or are early in their career may score lower than their actual ability warrants.
+            Use this as a signal, not a verdict.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ResultsPage({ result, onReset }: Props) {
+  const [showScoring, setShowScoring] = useState(false)
+
   const { candidateName, overallScore, overallEngineeringLevel, narrative,
     linkedinUrl, parsedResume, resumeScore, githubScore, topRepos,
     jobSkillsDetected, totalReposAnalyzed } = result
@@ -241,7 +290,6 @@ export default function ResultsPage({ result, onReset }: Props) {
   const effectiveGithubScore = githubScore ?? overallScore
   const effectiveResumeScore = resumeScore ?? null
 
-  // GitHub vs resume alignment insight
   const githubLevel = topRepos[0]?.engineeringLevel || 'unknown'
   const resumeLevel = effectiveResumeScore?.level || 'new-grad'
   const levelOrder = ['new-grad', 'junior', 'mid', 'senior', 'staff']
@@ -258,7 +306,8 @@ export default function ResultsPage({ result, onReset }: Props) {
     <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
       <div className="grain" />
 
-      {/* Top bar */}
+      {showScoring && <ScoringModal onClose={() => setShowScoring(false)} />}
+
       <header style={{ padding: '14px 40px', display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', borderBottom: '1px solid var(--border)',
         background: 'var(--bg-card)', position: 'sticky', top: 0, zIndex: 100 }}>
@@ -300,6 +349,26 @@ export default function ResultsPage({ result, onReset }: Props) {
                   <span style={{ fontSize: 12, color: 'var(--brown-200)' }}>· {jobSkillsDetected.length} skills matched</span>
                 )}
               </div>
+
+              <button
+                onClick={() => setShowScoring(true)}
+                style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 8,
+                  background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'var(--cream)', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                  fontFamily: 'DM Sans, sans-serif', transition: 'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                How is this score calculated?
+              </button>
+
+
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -334,6 +403,22 @@ export default function ResultsPage({ result, onReset }: Props) {
         {/* Score breakdown */}
         <div className="fade-up-1" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)',
           borderRadius: 14, padding: '18px 24px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+              textTransform: 'uppercase', letterSpacing: '0.1em' }}>Score breakdown</span>
+            <button onClick={() => setShowScoring(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12,
+                color: 'var(--brown-500)', background: 'none', border: 'none',
+                cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', padding: 0 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              How scoring works
+            </button>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
@@ -364,7 +449,7 @@ export default function ResultsPage({ result, onReset }: Props) {
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.75 }}>{narrative}</p>
         </div>
 
-        {/* MAIN LAYOUT — 70/30 */}
+        {/* MAIN LAYOUT */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'start' }}>
 
           {/* LEFT — repos */}
@@ -389,9 +474,7 @@ export default function ResultsPage({ result, onReset }: Props) {
             <div className="fade-up-2" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)',
               borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
               <h2 style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase',
-                letterSpacing: '0.1em', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>
-                Level signals
-              </h2>
+                letterSpacing: '0.1em', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>Level signals</h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '8px 12px', borderRadius: 8, background: 'var(--bg)', border: '1px solid var(--border)' }}>
@@ -409,11 +492,11 @@ export default function ResultsPage({ result, onReset }: Props) {
                   <LevelBadge level={overallEngineeringLevel} />
                 </div>
               </div>
-              {/* Alignment insight */}
               <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 8,
                 background: alignmentDiff >= 2 ? '#D8F3DC' : alignmentDiff <= -2 ? '#FFF3CD' : 'var(--bg)',
                 border: `1px solid ${alignmentDiff >= 2 ? '#A8D5B5' : alignmentDiff <= -2 ? '#FFE082' : 'var(--border)'}` }}>
-                <p style={{ fontSize: 11, fontWeight: 600, color: alignmentDiff >= 2 ? '#2D6A4F' : alignmentDiff <= -2 ? '#A07020' : 'var(--text-muted)',
+                <p style={{ fontSize: 11, fontWeight: 600,
+                  color: alignmentDiff >= 2 ? '#2D6A4F' : alignmentDiff <= -2 ? '#A07020' : 'var(--text-muted)',
                   textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
                   Alignment with GitHub
                 </p>
@@ -426,27 +509,20 @@ export default function ResultsPage({ result, onReset }: Props) {
               <div className="fade-up-2" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)',
                 borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <h2 style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase',
-                  letterSpacing: '0.1em', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>
-                  Experience summary
-                </h2>
-
+                  letterSpacing: '0.1em', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>Experience summary</h2>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <LevelBadge level={effectiveResumeScore.level} />
                   <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 16, fontWeight: 500, color: 'var(--brown-700)' }}>
                     {effectiveResumeScore.score}<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/40</span>
                   </span>
                 </div>
-
                 <div style={{ height: 5, borderRadius: 99, background: 'var(--brown-100)', overflow: 'hidden', marginBottom: 12 }}>
                   <div style={{ height: '100%', borderRadius: 99, background: '#2D6A4F',
                     width: `${(effectiveResumeScore.score / 40) * 100}%`, transition: 'width 0.8s ease' }} />
                 </div>
-
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>
                   {effectiveResumeScore.companySummary}
                 </p>
-
-                {/* Signals */}
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase',
                   letterSpacing: '0.07em', marginBottom: 6 }}>Signals</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
@@ -457,8 +533,6 @@ export default function ResultsPage({ result, onReset }: Props) {
                     </div>
                   ))}
                 </div>
-
-                {/* Per-position assessments */}
                 {effectiveResumeScore.experienceAssessments?.map((exp: any, i: number) => (
                   <div key={i} style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg)',
                     border: '1px solid var(--border)', marginBottom: 8 }}>
@@ -468,21 +542,15 @@ export default function ResultsPage({ result, onReset }: Props) {
                         <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{exp.company}</p>
                       </div>
                       <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 14, fontWeight: 500,
-                        color: 'var(--brown-700)', flexShrink: 0 }}>
-                        {exp.score}/10
-                      </span>
+                        color: 'var(--brown-700)', flexShrink: 0 }}>{exp.score}/10</span>
                     </div>
                     <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4,
                       background: exp.tier === 'tier-1' ? '#D8F3DC' : exp.tier === 'tier-2' ? '#FFF3CD' : '#F0F0F0',
                       color: exp.tier === 'tier-1' ? '#2D6A4F' : exp.tier === 'tier-2' ? '#A07020' : '#6B6B6B',
-                      display: 'inline-block', marginBottom: 6 }}>
-                      {exp.tierLabel}
-                    </span>
+                      display: 'inline-block', marginBottom: 6 }}>{exp.tierLabel}</span>
                     <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{exp.reason}</p>
                   </div>
                 ))}
-
-                {/* Education */}
                 {parsedResume?.education?.map((edu: any, i: number) => (
                   <div key={i} style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--bg)',
                     border: '1px solid var(--border)', marginBottom: 8 }}>
@@ -498,16 +566,12 @@ export default function ResultsPage({ result, onReset }: Props) {
               <div className="fade-up-3" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)',
                 borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <h2 style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase',
-                  letterSpacing: '0.1em', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>
-                  Claimed skills
-                </h2>
+                  letterSpacing: '0.1em', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>Claimed skills</h2>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                   {parsedResume.skills.map((skill: string) => (
                     <span key={skill} style={{ padding: '3px 8px', borderRadius: 5,
                       background: 'var(--brown-50)', border: '1px solid var(--brown-200)',
-                      fontSize: 11, color: 'var(--brown-700)', fontWeight: 500 }}>
-                      {skill}
-                    </span>
+                      fontSize: 11, color: 'var(--brown-700)', fontWeight: 500 }}>{skill}</span>
                   ))}
                 </div>
               </div>
@@ -518,9 +582,7 @@ export default function ResultsPage({ result, onReset }: Props) {
               <div className="fade-up-3" style={{ background: 'var(--bg-card)', border: '1.5px solid var(--border)',
                 borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <h2 style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase',
-                  letterSpacing: '0.1em', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>
-                  Job skill match
-                </h2>
+                  letterSpacing: '0.1em', marginBottom: 12, fontFamily: 'DM Sans, sans-serif' }}>Job skill match</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                   {jobSkillsDetected.map((skill: string) => {
                     const bestEvidence = topRepos.reduce((best: string, repo: any) => {
@@ -543,40 +605,17 @@ export default function ResultsPage({ result, onReset }: Props) {
           </div>
         </div>
       </div>
+
       {/* Floating feedback button */}
-      <a
-        href="https://docs.google.com/forms/d/e/1FAIpQLSdZaQnu6_hkJ1TZvb-nHVNWytDkkWKZvSvuDTYWPZu197yrnw/viewform"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          position: 'fixed',
-          bottom: 28,
-          right: 28,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '10px 18px',
-          borderRadius: 99,
-          background: 'var(--brown-700)',
-          color: 'var(--cream)',
-          fontSize: 13,
-          fontWeight: 500,
-          textDecoration: 'none',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-          cursor: 'pointer',
-          fontFamily: 'DM Sans, sans-serif',
-          transition: 'background 0.15s, transform 0.15s',
-          zIndex: 999,
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.background = 'var(--brown-800)'
-          e.currentTarget.style.transform = 'translateY(-2px)'
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background = 'var(--brown-700)'
-          e.currentTarget.style.transform = 'translateY(0)'
-        }}
-      >
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSdZaQnu6_hkJ1TZvb-nHVNWytDkkWKZvSvuDTYWPZu197yrnw/viewform"
+        target="_blank" rel="noopener noreferrer"
+        style={{ position: 'fixed', bottom: 28, right: 28, display: 'flex', alignItems: 'center',
+          gap: 8, padding: '10px 18px', borderRadius: 99, background: 'var(--brown-700)',
+          color: 'var(--cream)', fontSize: 13, fontWeight: 500, textDecoration: 'none',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.18)', cursor: 'pointer',
+          fontFamily: 'DM Sans, sans-serif', zIndex: 999 }}
+        onMouseEnter={(e: any) => { e.currentTarget.style.background = 'var(--brown-800)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+        onMouseLeave={(e: any) => { e.currentTarget.style.background = 'var(--brown-700)'; e.currentTarget.style.transform = 'translateY(0)' }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>

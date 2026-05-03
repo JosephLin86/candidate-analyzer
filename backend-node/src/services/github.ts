@@ -43,49 +43,67 @@ export async function getFileStructure(owner: string, repo: string) {
   }
 }
 
-export async function getDependencies(owner: string, repo: string) {
-  const pathsToCheck = [
-    'package.json',
-    'frontend/package.json',
-    'client/package.json',
-    'app/package.json',
-    'src/package.json',
-    'backend/package.json',
-    'server/package.json',
-    'requirements.txt',
-    'frontend/requirements.txt',
-  ]
-
+export async function getDependencies(owner: string, repo: string): Promise<string[]> {
   const allDeps: string[] = []
 
-  for (const filePath of pathsToCheck) {
-    try {
-      const response = await axios.get(
-        `${BASE_URL}/repos/${owner}/${repo}/contents/${filePath}`,
-        { headers }
-      )
-      const content = Buffer.from(response.data.content, 'base64').toString()
+  try {
+    // Fetch the full recursive file tree
+    const treeResponse = await axios.get(
+      `${BASE_URL}/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`,
+      { headers }
+    )
 
-      if (filePath.endsWith('package.json')) {
-        const pkg = JSON.parse(content)
-        const deps = [
-          ...Object.keys(pkg.dependencies || {}),
-          ...Object.keys(pkg.devDependencies || {})
-        ]
-        allDeps.push(...deps)
-      } else if (filePath.endsWith('requirements.txt')) {
-        const deps = content
-          .split('\n')
-          .filter(Boolean)
-          .map(d => d.split('==')[0].trim())
-        allDeps.push(...deps)
+    // Find all package.json files excluding node_modules
+    const packageJsonPaths: string[] = treeResponse.data.tree
+      .filter((item: any) =>
+        item.type === 'blob' &&
+        item.path.endsWith('package.json') &&
+        !item.path.includes('node_modules')
+      )
+      .map((item: any) => item.path)
+
+    // Find all requirements.txt files excluding node_modules
+    const requirementsPaths: string[] = treeResponse.data.tree
+      .filter((item: any) =>
+        item.type === 'blob' &&
+        item.path.endsWith('requirements.txt') &&
+        !item.path.includes('node_modules')
+      )
+      .map((item: any) => item.path)
+
+    const allPaths = [...packageJsonPaths, ...requirementsPaths]
+
+    // Fetch each file and extract dependencies
+    for (const filePath of allPaths) {
+      try {
+        const response = await axios.get(
+          `${BASE_URL}/repos/${owner}/${repo}/contents/${filePath}`,
+          { headers }
+        )
+        const content = Buffer.from(response.data.content, 'base64').toString()
+
+        if (filePath.endsWith('package.json')) {
+          const pkg = JSON.parse(content)
+          const deps = [
+            ...Object.keys(pkg.dependencies || {}),
+            ...Object.keys(pkg.devDependencies || {})
+          ]
+          allDeps.push(...deps)
+        } else if (filePath.endsWith('requirements.txt')) {
+          const deps = content
+            .split('\n')
+            .filter(Boolean)
+            .map((d: string) => d.split('==')[0].trim())
+          allDeps.push(...deps)
+        }
+      } catch {
+        // file couldn't be read, skip
       }
-    } catch {
-      // file doesn't exist at this path, try next
     }
+  } catch {
+    // tree fetch failed, return empty
   }
 
-  // deduplicate
   return [...new Set(allDeps)]
 }
 
@@ -173,7 +191,6 @@ export async function getReadme(owner: string, repo: string): Promise<string> {
       { headers }
     )
     const content = Buffer.from(response.data.content, 'base64').toString('utf-8')
-    // Return first 1000 chars only — enough context without blowing token budget
     return content.slice(0, 1000)
   } catch {
     return ''
